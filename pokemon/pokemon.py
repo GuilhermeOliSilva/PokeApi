@@ -267,14 +267,21 @@ site_treinador = "http://127.0.0.1:9000" #quando você estiver executando o serv
 def cadastrar_treinador(nome):
     url = f"{site_treinador}/treinador/{nome}"
     r = requests.put(url)
-    status_code = r.status_code()
+    status_code = r.status_code
 
+    '''
     if status_code == 303: # 303 o treinador já existe
         return False
     elif status_code == 202: # 202 o treinador foi criado
         return True
+    '''
+    
+    if status_code == 202:
+        return True
+    else:
+        return False
 
-
+print(cadastrar_treinador("Marcelo"))
 #nao precisa mexer nas proximas excessões
 # São só erros pra você lançar nas próximas funções
 # Leia os nomes delas, e use quando apropriado.
@@ -313,17 +320,15 @@ Mais dicas teste 10:
 está fazendo um cadastro dobrado
 * Se voce receber um status 202, isso indica criação bem sucedida
 """
-def cadastrar_pokemon(nome_treinador, apelido_pokemon, tipo_pokemon, experiencia):
-    pass
 
 def cadastrar_pokemon(nome_treinador, apelido_pokemon, tipo_pokemon, experiencia):
-    tipo_pokemon_lower = tipo_pokemon.lower()#necessário para pokeapi mas nao treinador, só estou
-    #deixando isso claro
+    tipo_pokemon_lower = tipo_pokemon.lower() #necessário para pokeapi mas nao treinador, só estou deixando isso claro
     resposta1 = requests.get(f"{site_pokeapi}/api/v2/pokemon/{tipo_pokemon_lower}/")
     if resposta1.status_code == 404: raise PokemonNaoExisteException()
+
     resposta = requests.put(f"{site_treinador}/treinador/{nome_treinador}/{apelido_pokemon}", json = {'tipo': tipo_pokemon, 'experiencia': experiencia})
     if resposta.status_code == 404: raise TreinadorNaoCadastradoException()
-    if resposta.status_code == 409: raise PokemonJaCadastradoException()
+    elif resposta.status_code == 409: raise PokemonJaCadastradoException()
     assert resposta.status_code == 202
 
 """
@@ -344,8 +349,22 @@ ou o treinador existe mas o pokemon não. Isso pode verificado acessando a respo
 
 O cod de status de sucesso é o 204
 """
+import json
+
 def ganhar_experiencia(nome_treinador, apelido_pokemon, experiencia):
-    pass
+    url = f"{site_treinador}/treinador/{nome_treinador}/{apelido_pokemon}/exp"
+    data = {'experiencia': experiencia}
+    json_data = json.dumps(data)
+
+    response = requests.post(url, data=json_data)
+
+    if response.status_code == 204:
+        print("Experiência adicionada com sucesso!")
+    elif response.status_code == 404: 
+        print("Erro: Treinador ou Pokémon não encontrado.")
+        return None
+    else:
+        print(f"Erro: {response.status_code} - {response.text}") 
 
 
 """
@@ -385,7 +404,24 @@ Podemos construir um objeto do tipo pokemon assim:
 Pokemon(nome_treinador, apelido_pokemon, tipo, experiencia, nivel_do_pokemon(tipo, experiencia), cor_do_pokemon(tipo), evolucao_anterior(tipo))
 """
 def localizar_pokemon(nome_treinador, apelido_pokemon):
-    pass
+    url = f"{site_treinador}/treinador/{nome_treinador}/{apelido_pokemon}"
+    response = requests.get(url)
+
+    if response.status_code == 404:
+        print("Erro: Treinador ou Pokémon não encontrado.")
+        return None
+
+    pokemon_data = response.json()
+
+    tipo = pokemon_data.get('tipo')
+    experiencia = pokemon_data.get('experiencia')
+    nivel = nivel_do_pokemon(tipo, experiencia)
+    cor = cor_do_pokemon(tipo)
+    evoluiu_de = evolucao_anterior(tipo)
+
+    pokemon = Pokemon(nome_treinador, apelido_pokemon, tipo, experiencia, nivel, cor, evoluiu_de)
+
+    return pokemon
 
 
 """
@@ -397,9 +433,20 @@ Consulte ela com seu navegador e veja o que tem lá! (talvez você queira usar
 as funções anteriores para criar um treinador e seus pokemons...)
 """
 def detalhar_treinador(nome_treinador):
-    pass
+    url = f"{site_treinador}/treinador/{nome_treinador}"
+    response = requests.get(url)
 
+    if response.status_code == 404: raise TreinadorNaoCadastradoException()
 
+    pokemon_list = f"{url}/apelido_pokemon"
+
+    pokemon_dict = {}
+    for pokemon in pokemon_list.find_all("li"):
+        apelido = pokemon.find("h2").text
+        tipo = pokemon.find("p").text
+        pokemon_dict[apelido] = tipo
+
+    return pokemon_dict
 
 """
 14. Dado o nome de um treinador, localize-o na API do treinador e exclua-o, juntamente com todos os seus pokémons.
@@ -410,7 +457,12 @@ O status code vai de informar se o treinador não existia (com qual status code?
 Para enviar um request com o verbo delete, use requests.delete(url)
 """
 def excluir_treinador(nome_treinador):
-    pass
+    url = f"{site_treinador}/treinador/{nome_treinador}"
+    response = requests.delete(url)
+
+    if response.status_code == 204: print(f"Treinador {nome_treinador} excluído com sucesso!")
+    elif response.status_code == 404: print(f"Treinador {nome_treinador} não encontrado.")
+    else: print(f"Erro ao excluir treinador {nome_treinador}. Status code {response.status_code}.")
 
 
 """
@@ -421,7 +473,30 @@ O status code vai de informar se o treinador não existe, ou se o pokemon nao ex
 (status code 404, não deixe de verificar se foi o pokemon ou treinador que não existia)
 """
 def excluir_pokemon(nome_treinador, apelido_pokemon):
-    pass
+    # URL do treinador na API
+    url_treinador = f"{site_treinador}/treinador/{nome_treinador}"
+
+    # Verifica se o treinador existe na API
+    response_treinador = requests.get(url_treinador)
+    if response_treinador.status_code != 200:
+        print(f"Treinador {nome_treinador} não encontrado na API")
+        return
+
+    # URL do pokemon na API
+    url_pokemon = f"{url_treinador}/{apelido_pokemon}"
+
+    # Verifica se o pokemon existe na API
+    response_pokemon = requests.get(url_pokemon)
+    if response_pokemon.status_code != 200:
+        print(f"Pokémon {apelido_pokemon} não encontrado para o treinador {nome_treinador}")
+        return
+
+    # Exclui o pokemon da API
+    response_delete = requests.delete(url_pokemon)
+    if response_delete.status_code == 200:
+        print(f"Pokémon {apelido_pokemon} excluído com sucesso para o treinador {nome_treinador}")
+    else:
+        print(f"Não foi possível excluir o Pokémon {apelido_pokemon} para o treinador {nome_treinador}")
 
 
 
